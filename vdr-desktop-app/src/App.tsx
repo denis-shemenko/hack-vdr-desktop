@@ -1,18 +1,15 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-
-interface FileInfo {
-  name: string;
-  path: string;
-}
+import { Upload, Download, Trash2, File } from 'lucide-react';
+import { readFile } from '@tauri-apps/plugin-fs';
 
 export default function App() {
   const [status, setStatus] = useState<string>('');
   const [files, setFiles] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const API_URL = 'http://127.0.0.1:8000';
 
-  // Fetch file list from backend
   const fetchFiles = async () => {
     try {
       const response = await fetch(`${API_URL}/files`);
@@ -31,7 +28,7 @@ export default function App() {
 
   const handleUpload = async () => {
     try {
-      // Open file selector using Tauri
+      setIsLoading(true);
       const selected = await open({
         multiple: false,
         filters: [{
@@ -41,20 +38,14 @@ export default function App() {
       });
 
       if (selected && typeof selected === 'string') {
-        // Read file using Tauri
-        const fileContent = await invoke('read_file', { 
-          filePath: selected 
-        });
+        // Read file using fs plugin
+        const fileContent = await readFile(selected);
+        const fileName = selected.split('\\').pop()?.split('/').pop() || '';
 
-        // Create form data for upload
-        const fileName = selected.split('\\').pop()?.split('/').pop();
         const formData = new FormData();
-        const blob = new Blob([fileContent as BlobPart], { 
-          type: 'application/octet-stream' 
-        });
-        formData.append('file', blob, fileName);
+        const file = new Blob([fileContent], { type: 'application/octet-stream' });
+        formData.append('file', file, fileName);
 
-        // Upload to FastAPI
         const response = await fetch(`${API_URL}/upload`, {
           method: 'POST',
           body: formData,
@@ -62,19 +53,21 @@ export default function App() {
 
         const result = await response.json();
         setStatus(`Upload success: ${result.filename}`);
-        fetchFiles(); // Refresh file list
+        fetchFiles();
       }
     } catch (error) {
       setStatus(`Error: ${error}`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleDownload = async (filename: string) => {
     try {
+      setIsLoading(true);
       const response = await fetch(`${API_URL}/download/${filename}`);
       const blob = await response.blob();
       
-      // Create download link
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -87,62 +80,94 @@ export default function App() {
       setStatus('Download complete');
     } catch (error) {
       setStatus(`Error: ${error}`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleDelete = async (filename: string) => {
     try {
+      setIsLoading(true);
       const response = await fetch(`${API_URL}/delete/${filename}`, {
         method: 'DELETE',
       });
       const result = await response.json();
       setStatus(result.message);
-      fetchFiles(); // Refresh file list
+      fetchFiles();
     } catch (error) {
       setStatus(`Error: ${error}`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="container p-4">
-      <h1 className="text-2xl font-bold mb-4">VDR Desktop - YODY</h1>
-      
-      <button 
-        onClick={handleUpload}
-        className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mb-4"
-      >
-        Upload File
-      </button>
+    <div className="min-h-screen bg-[#022e34] text-white p-8">
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-3xl font-bold mb-8 text-center">VDR Desktop by YODY</h1>
+        
+        <div className="mb-8">
+          <button 
+            onClick={handleUpload}
+            disabled={isLoading}
+            className="w-full bg-white bg-opacity-10 hover:bg-opacity-20 
+                     transition-all duration-300 rounded-lg p-6 
+                     flex items-center justify-center space-x-2
+                     disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Upload size={24} />
+            <span>Upload File</span>
+          </button>
+        </div>
 
-      <div className="mb-4 text-sm text-gray-600">{status}</div>
-
-      <div className="border rounded-lg p-4">
-        <h2 className="text-xl font-semibold mb-3">Files</h2>
-        {files.length === 0 ? (
-          <p className="text-gray-500">No files uploaded yet</p>
-        ) : (
-          <ul className="space-y-2">
-            {files.map((file) => (
-              <li key={file} className="flex items-center justify-between border-b pb-2">
-                <span>{file}</span>
-                <div className="space-x-2">
-                  <button
-                    onClick={() => handleDownload(file)}
-                    className="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600"
-                  >
-                    Download
-                  </button>
-                  <button
-                    onClick={() => handleDelete(file)}
-                    className="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+        {status && (
+          <div className="mb-6 p-4 rounded-lg bg-white bg-opacity-5 text-sm">
+            {status}
+          </div>
         )}
+
+        <div className="space-y-4">
+          {files.length === 0 ? (
+            <div className="text-center text-white text-opacity-60 p-8">
+              No files uploaded yet
+            </div>
+          ) : (
+            files.map((file) => (
+              <div 
+                key={file}
+                className="bg-white bg-opacity-5 rounded-lg p-4
+                         hover:bg-opacity-10 transition-all duration-300"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <File size={20} className="text-white text-opacity-60" />
+                    <span className="truncate">{file}</span>
+                  </div>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => handleDownload(file)}
+                      disabled={isLoading}
+                      className="p-2 hover:bg-white hover:bg-opacity-10 rounded-lg
+                               transition-all duration-300
+                               disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Download size={20} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(file)}
+                      disabled={isLoading}
+                      className="p-2 hover:bg-white hover:bg-opacity-10 rounded-lg
+                               transition-all duration-300 text-red-400
+                               disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

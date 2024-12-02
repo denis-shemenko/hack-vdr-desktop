@@ -39,6 +39,7 @@ async fn read_file(file_path: String) -> Result<Vec<u8>, String> {
 fn main() {
     //vdr_desktop_app_lib::run()
     tauri::Builder::default()
+        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             #[cfg(debug_assertions)]
             {
