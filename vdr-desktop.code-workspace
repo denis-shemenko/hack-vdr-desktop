@@ -1,0 +1,68 @@
+{
+    "folders": [
+        {
+            "name": "🏗️ Project Root",
+            "path": "."
+        },
+        {
+            "name": "⚡ Frontend",
+            "path": "vdr-desktop-app/src"
+        },
+        {
+            "name": "🦀 Tauri",
+            "path": "vdr-desktop-app/src-tauri"
+        },
+        {
+            "name": "🚀 Backend",
+            "path": "backend"
+        }
+    ],
+    "settings": {
+        "editor.formatOnSave": true,
+        "python.formatting.provider": "black",
+        "rust-analyzer.checkOnSave.command": "clippy",
+        "[typescript]": {
+            "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[python]": {
+            "editor.defaultFormatter": "ms-python.python"
+        },
+        "[rust]": {
+            "editor.defaultFormatter": "rust-lang.rust-analyzer"
+        },
+        "files.exclude": {
+            "**/node_modules": true,
+            "**/__pycache__": true,
+            "**/target": true
+        }
+    },
+    "extensions": {
+        "recommendations": [
+            "rust-lang.rust-analyzer",
+            "tauri-apps.tauri-vscode",
+            "ms-python.python",
+            "ms-python.vscode-pylance",
+            "dsznajder.es7-react-js-snippets",
+            "esbenp.prettier-vscode",
+            "rangav.vscode-thunder-client"
+        ]
+    },
+    "launch": {
+        "configurations": [
+            {
+                "type": "debugpy",
+                "request": "launch",
+                "name": "FastAPI",
+                "program": "${workspaceFolder}/backend/main.py",
+                "console": "integratedTerminal"
+            }
+        ],
+        "compounds": [
+            {
+                "name": "Full Stack Debug",
+                "configurations": ["FastAPI"],
+                "preLaunchTask": "npm: dev"
+            }
+        ]
+    }
+}
