@@ -4,6 +4,11 @@ declare global {
           uploadFile: (filename: string, content: Buffer) => Promise<{ success: boolean; filePath?: string; error?: string }>;
           downloadFile: (filename: string) => Promise<{ success: boolean; content?: Buffer; error?: string }>;
           deleteFile: (filename: string) => Promise<{ success: boolean; error?: string }>;
+          uploadFolder: (folderPath: string) => Promise<{ success: boolean; files: string[]; error?: string }>;
+          readFileContent: (filePath: string) => Promise<{ success: boolean; content?: Buffer; error?: string }>;
+          openFolderDialog: () => Promise<string | undefined>;
+          onFilesChanged: (callback: () => void) => () => void;
+          watchFiles: () => Promise<{ success: boolean }>;
       }
   }
 }
@@ -12,6 +17,7 @@ declare global {
 import { useState, useEffect } from 'react';
 import { Upload, Download, Trash2, File } from 'lucide-react';
 import { Buffer } from 'buffer';
+import { FolderUp } from 'lucide-react';
 
 export default function App() {
   const [status, setStatus] = useState<string>('');
@@ -43,7 +49,18 @@ export default function App() {
 
 // Add polling for file updates
 useEffect(() => {
-  fetchFiles();
+  // Start watching files
+  window.electronAPI.watchFiles();
+
+  // Setup listener for file changes
+  const removeListener = window.electronAPI.onFilesChanged(() => {
+      fetchFiles();
+  });
+
+  // Cleanup listener when component unmounts
+  return () => {
+      removeListener();
+  };
 }, []);
 
   // Modify handleUpload to ensure refresh after successful upload
@@ -94,6 +111,53 @@ const handleUpload = async () => {
       
   } catch (error) {
       setStatus(`Error: ${error}`);
+  } finally {
+      setIsLoading(false);
+  }
+};
+
+// Update folder upload handler
+const handleFolderUpload = async () => {
+  try {
+      setIsLoading(true);
+      
+      // Open folder selection dialog using Electron
+      const selected = await window.electronAPI.openFolderDialog();
+
+      if (selected) {
+          // Get all files in the folder
+          const result = await window.electronAPI.uploadFolder(selected);
+          
+          if (result.success && result.files) {
+              // Upload each file to FastAPI
+              const basePath = selected.replace(/\\/g, '/');
+              
+              for (const filePath of result.files) {
+                  // Get file content
+                  const fileContent = await window.electronAPI.readFileContent(filePath);
+                  if (!fileContent.success || !fileContent.content) continue;
+
+                  // Create relative path
+                  const relativePath = filePath.replace(basePath, '').replace(/^[/\\]/, '');
+                  
+                  // Create form data
+                  const formData = new FormData();
+                  const file = new Blob([fileContent.content], { type: 'application/octet-stream' });
+                  formData.append('files', file, relativePath);
+
+                  // Upload to FastAPI
+                  await fetch(`${API_URL}/upload-folder`, {
+                      method: 'POST',
+                      body: formData
+                  });
+              }
+
+              setStatus(`Folder uploaded successfully`);
+              await fetchFiles();
+          }
+      }
+  } catch (error) {
+      setStatus(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
   } finally {
       setIsLoading(false);
   }
@@ -163,7 +227,7 @@ const handleUpload = async () => {
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold mb-8 text-center">VDR Desktop by YODY</h1>
         
-        <div className="mb-8">
+        <div className="mb-4 flex gap-4">
           <button 
             onClick={handleUpload}
             disabled={isLoading}
@@ -175,6 +239,17 @@ const handleUpload = async () => {
             <Upload size={24} />
             <span>Upload File</span>
           </button>
+          <button 
+                    onClick={handleFolderUpload}
+                    disabled={isLoading}
+                    className="flex-1 bg-white bg-opacity-10 hover:bg-opacity-20 
+                             transition-all duration-300 rounded-lg p-6 
+                             flex items-center justify-center space-x-2
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <FolderUp size={24} />
+                    <span>Upload Folder</span>
+                </button>
         </div>
 
         {status && (

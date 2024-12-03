@@ -53,6 +53,28 @@ async def list_files():
     except Exception as e:
         return {"error": str(e)}
 
+@app.post("/upload-folder")
+async def upload_folder(files: list[UploadFile]):
+    try:
+        results = []
+        for file in files:
+            # Extract relative path from filename
+            relative_path = file.filename.replace('\\', '/')
+            full_path = os.path.join(UPLOAD_DIR, relative_path)
+            
+            # Create directory structure if needed
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+            
+            # Save the file
+            with open(full_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+            
+            results.append({"filename": relative_path, "status": "success"})
+        
+        return {"files": results}
+    except Exception as e:
+        return {"error": str(e)}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)

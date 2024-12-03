@@ -1,7 +1,8 @@
 // main.ts
-import { app, BrowserWindow, ipcMain, Tray, Menu } from "electron";
+import { app, BrowserWindow, ipcMain, Tray, Menu, dialog } from "electron";
 import * as path from "path";
 import * as fs from "fs/promises";
+import chokidar, { FSWatcher } from "chokidar";
 
 const UPLOAD_DIR = path.join(app.getPath("userData"), "uploads");
 
@@ -16,6 +17,7 @@ async function ensureUploadDir() {
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+let watcher: FSWatcher | null = null;
 
 // Helper function to get the correct asset path
 function getAssetPath(asset: string): string {
@@ -26,6 +28,24 @@ function getAssetPath(asset: string): string {
 
 function isDev() {
   return process.env.NODE_ENV === "development";
+}
+
+function setupFileWatcher(mainWindow: BrowserWindow) {
+  const watcher = chokidar.watch(UPLOAD_DIR, {
+    ignored: /(^|[\/\\])\../, // ignore dotfiles
+    persistent: true,
+    ignoreInitial: true,
+  });
+
+  watcher.on("all", (event, path) => {
+    // Send event to renderer process
+    mainWindow?.webContents.send("files-changed");
+  });
+
+  // Clean up watcher when app closes
+  app.on("before-quit", () => {
+    watcher.close();
+  });
 }
 
 const createWindow = () => {
@@ -54,6 +74,8 @@ const createWindow = () => {
     event.preventDefault();
     mainWindow?.hide();
   });
+
+  setupFileWatcher(mainWindow);
 };
 
 const createTray = () => {
@@ -127,6 +149,59 @@ ipcMain.handle("delete-file", async (_event, _filename: string) => {
   }
 });
 
+ipcMain.handle("upload-folder", async (_event, folderPath: string) => {
+  try {
+    const getFiles = async (dir: string): Promise<string[]> => {
+      const dirents = await fs.readdir(dir, { withFileTypes: true });
+      const files = await Promise.all(
+        dirents.map((dirent) => {
+          const res = path.join(dir, dirent.name);
+          return dirent.isDirectory() ? getFiles(res) : [res];
+        })
+      );
+      return files.flat();
+    };
+
+    const files = await getFiles(folderPath);
+    return { success: true, files };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+});
+
+// Also add a helper to read file content
+ipcMain.handle("read-file-content", async (_event, filePath: string) => {
+  try {
+    const content = await fs.readFile(filePath);
+    return { success: true, content };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+});
+
+ipcMain.handle("open-folder-dialog", async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ["openDirectory"],
+  });
+  return result.filePaths[0];
+});
+
+// Update preload API
+ipcMain.handle("watch-files", () => {
+  if (!watcher && mainWindow) {
+    watcher = chokidar.watch(UPLOAD_DIR, {
+      ignored: /(^|[\/\\])\../,
+      persistent: true,
+      ignoreInitial: true,
+    });
+
+    watcher.on("all", (event, path) => {
+      mainWindow?.webContents.send("files-changed");
+    });
+  }
+  return { success: true };
+});
+
 app.whenReady().then(() => {
   createWindow();
   createTray();
@@ -141,5 +216,12 @@ app.whenReady().then(() => {
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
+  }
+});
+
+app.on("before-quit", () => {
+  if (watcher) {
+    watcher.close();
+    watcher = null;
   }
 });

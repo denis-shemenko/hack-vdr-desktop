@@ -9,6 +9,7 @@
         "start": "cross-env NODE_ENV=production electron ."
     },
     "dependencies": {
+        "chokidar": "^4.0.1",
         "electron": "^28.3.3",
         "electron-builder": "^25.1.8",
         "lucide-react": "^0.464.0",
