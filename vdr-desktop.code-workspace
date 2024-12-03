@@ -55,6 +55,18 @@
                 "name": "FastAPI",
                 "program": "${workspaceFolder}/backend/main.py",
                 "console": "integratedTerminal"
+            },
+            {
+                "type": "node",
+                "request": "launch",
+                "name": "Debug Tauri Development",
+                "program": "${workspaceFolder}/src-tauri/target/debug/file-operations-app",
+                "args": [],
+                "cwd": "${workspaceFolder}/src-tauri",
+                "env": {
+                    "RUST_BACKTRACE": "1"
+                },
+                "preLaunchTask": "Build Debug"
             }
         ],
         "compounds": [
