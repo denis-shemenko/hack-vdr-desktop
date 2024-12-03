@@ -1,0 +1,48 @@
+{
+    "name": "vdr-desktop",
+    "version": "1.0.0",
+    "main": "dist/main/main.js",
+    "scripts": {
+        "dev": "cross-env NODE_ENV=development concurrently \"vite\" \"tsc -p tsconfig.electron.json -w\" \"wait-on http://localhost:5173 && electron .\"",
+        "build": "tsc -p tsconfig.electron.json && vite build",
+        "preview": "vite preview",
+        "start": "cross-env NODE_ENV=production electron ."
+    },
+    "dependencies": {
+        "electron": "^28.3.3",
+        "electron-builder": "^25.1.8",
+        "lucide-react": "^0.464.0",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1"
+    },
+    "devDependencies": {
+        "@types/node": "^20.17.9",
+        "@types/react": "^18.3.12",
+        "@types/react-dom": "^18.3.1",
+        "@vitejs/plugin-react": "^4.3.4",
+        "autoprefixer": "^10.4.20",
+        "concurrently": "^8.2.2",
+        "cross-env": "^7.0.3",
+        "postcss": "^8.4.49",
+        "tailwindcss": "^3.4.16",
+        "typescript": "^5.7.2",
+        "vite": "^5.4.11",
+        "wait-on": "^8.0.1"
+    },
+    "build": {
+        "files": [
+            "dist/**/*",
+            "src/assets/**/*"
+        ],
+        "extraResources": [
+            {
+                "from": "src/assets",
+                "to": "assets"
+            }
+        ]
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "description": ""
+}

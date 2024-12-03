@@ -6,11 +6,11 @@
         },
         {
             "name": "⚡ Frontend",
-            "path": "vdr-desktop-app/src"
+            "path": "vdr-desktop-ele/src"
         },
         {
-            "name": "🦀 Tauri",
-            "path": "vdr-desktop-app/src-tauri"
+            "name": "🦀 Electron",
+            "path": "vdr-desktop-ele"
         },
         {
             "name": "🚀 Backend",
