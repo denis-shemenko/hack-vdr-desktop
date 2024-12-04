@@ -49,16 +49,25 @@ export default function App() {
 
 // Add polling for file updates
 useEffect(() => {
+  // Fetch files immediately when component mounts
+  fetchFiles();
+
   // Start watching files
   window.electronAPI.watchFiles();
 
-  // Setup listener for file changes
+  let timeoutId: NodeJS.Timeout;
+
+  // Setup listener for file changes with debounce
   const removeListener = window.electronAPI.onFilesChanged(() => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => {
       fetchFiles();
+    }, 500); // 500ms debounce
   });
 
   // Cleanup listener when component unmounts
   return () => {
+      clearTimeout(timeoutId);
       removeListener();
   };
 }, []);

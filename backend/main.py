@@ -1,23 +1,42 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from typing import Optional
+from pathlib import Path
 import shutil
 import os
+import json
 
 app = FastAPI()
 
 # Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Tauri app default port
+    allow_origins=["http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Global variable to store upload directory
+UPLOAD_DIR: Optional[Path] = None
+
 # Create uploads directory
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+# UPLOAD_DIR = "uploads"
+# os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+@app.post("/set-config")
+async def set_config(config: dict):
+    global UPLOAD_DIR
+    try:
+        with open(config["config_path"]) as f:
+            config_data = json.load(f)
+            UPLOAD_DIR = Path(config_data["upload_dir"])
+            # Ensure directory exists
+            UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        return {"status": "success", "upload_dir": str(UPLOAD_DIR)}
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):

@@ -6,6 +6,41 @@ import chokidar, { FSWatcher } from "chokidar";
 
 const UPLOAD_DIR = path.join(app.getPath("userData"), "uploads");
 
+// Add configuration endpoint
+async function setupFastAPIConfig() {
+  try {
+    // Create config file for FastAPI
+    const configPath = path.join(app.getPath("userData"), "config.json");
+    const config = {
+      upload_dir: UPLOAD_DIR,
+    };
+
+    await fs.writeFile(configPath, JSON.stringify(config, null, 2));
+    console.log("Config file created at:", configPath);
+
+    // Notify FastAPI about the config location
+    try {
+      const response = await fetch("http://127.0.0.1:8000/set-config", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ config_path: configPath }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      console.log("FastAPI config updated successfully");
+    } catch (error) {
+      console.error("Failed to notify FastAPI:", error);
+      // Don't throw here - we want the app to start even if FastAPI isn't running
+    }
+  } catch (error) {
+    console.error("Error setting up config:", error);
+  }
+}
+
 // Ensure upload directory exists
 async function ensureUploadDir() {
   try {
@@ -30,25 +65,46 @@ function isDev() {
   return process.env.NODE_ENV === "development";
 }
 
-function setupFileWatcher(mainWindow: BrowserWindow) {
-  const watcher = chokidar.watch(UPLOAD_DIR, {
+// Consolidated file watching setup
+function setupFileWatcher() {
+  if (watcher) {
+    watcher.close();
+  }
+
+  watcher = chokidar.watch(UPLOAD_DIR, {
     ignored: /(^|[\/\\])\../, // ignore dotfiles
     persistent: true,
-    ignoreInitial: true,
+    ignoreInitial: false, // Changed to true to catch initial files
+    awaitWriteFinish: {
+      stabilityThreshold: 2000,
+      pollInterval: 100,
+    },
   });
 
-  watcher.on("all", (event, path) => {
-    // Send event to renderer process
-    mainWindow?.webContents.send("files-changed");
-  });
+  watcher
+    .on("add", (path) => {
+      console.log(`File ${path} has been added`);
+      mainWindow?.webContents.send("files-changed");
+    })
+    .on("unlink", (path) => {
+      console.log(`File ${path} has been removed`);
+      mainWindow?.webContents.send("files-changed");
+    })
+    .on("change", (path) => {
+      console.log(`File ${path} has been changed`);
+      mainWindow?.webContents.send("files-changed");
+    })
+    .on("error", (error) => {
+      console.error(`Watcher error: ${error}`);
+    });
 
-  // Clean up watcher when app closes
-  app.on("before-quit", () => {
-    watcher.close();
-  });
+  return watcher;
 }
 
-const createWindow = () => {
+const createWindow = async () => {
+  await ensureUploadDir();
+  await setupFastAPIConfig();
+
   mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
@@ -75,7 +131,7 @@ const createWindow = () => {
     mainWindow?.hide();
   });
 
-  setupFileWatcher(mainWindow);
+  setupFileWatcher();
 };
 
 const createTray = () => {
@@ -114,12 +170,14 @@ const createTray = () => {
   });
 };
 
+// Add a handler to get upload directory
+ipcMain.handle("get-upload-dir", () => UPLOAD_DIR);
+
 // File operation handlers
 ipcMain.handle(
   "upload-file",
   async (_event, filename: string, content: Buffer) => {
     try {
-      await ensureUploadDir();
       const filePath = path.join(UPLOAD_DIR, filename);
       await fs.writeFile(filePath, content);
       return { success: true, filePath };
@@ -187,17 +245,10 @@ ipcMain.handle("open-folder-dialog", async () => {
 });
 
 // Update preload API
-ipcMain.handle("watch-files", () => {
+ipcMain.handle("watch-files", async () => {
+  // If watcher isn't running for some reason, set it up
   if (!watcher && mainWindow) {
-    watcher = chokidar.watch(UPLOAD_DIR, {
-      ignored: /(^|[\/\\])\../,
-      persistent: true,
-      ignoreInitial: true,
-    });
-
-    watcher.on("all", (event, path) => {
-      mainWindow?.webContents.send("files-changed");
-    });
+    setupFileWatcher();
   }
   return { success: true };
 });

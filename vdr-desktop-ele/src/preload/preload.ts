@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("read-file-content", filePath),
   openFolderDialog: () => ipcRenderer.invoke("open-folder-dialog"),
   watchFiles: () => ipcRenderer.invoke("watch-files"),
+  getUploadDir: () => ipcRenderer.invoke("get-upload-dir"),
   onFilesChanged: (callback: () => void) => {
     const subscription = (_event: any) => callback();
     ipcRenderer.on("files-changed", subscription);
