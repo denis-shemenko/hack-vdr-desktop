@@ -15,8 +15,16 @@ async function setupFastAPIConfig() {
       upload_dir: UPLOAD_DIR,
     };
 
+    // Ensure the config directory exists
+    await fs.mkdir(path.dirname(configPath), { recursive: true });
+
+    // Write the config file
     await fs.writeFile(configPath, JSON.stringify(config, null, 2));
     console.log("Config file created at:", configPath);
+    console.log("Config contents:", config);
+
+    // Wait a bit to ensure file is written
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     // Notify FastAPI about the config location
     try {
@@ -31,7 +39,14 @@ async function setupFastAPIConfig() {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      console.log("FastAPI config updated successfully");
+
+      const result = await response.json();
+      console.log("FastAPI config response:", result);
+
+      // Verify config was set
+      const configCheck = await fetch("http://127.0.0.1:8000/config");
+      const configStatus = await configCheck.json();
+      console.log("Config status:", configStatus);
     } catch (error) {
       console.error("Failed to notify FastAPI:", error);
       // Don't throw here - we want the app to start even if FastAPI isn't running
@@ -217,12 +232,16 @@ ipcMain.handle("upload-folder", async (_event, folderPath: string) => {
           return dirent.isDirectory() ? getFiles(res) : [res];
         })
       );
-      return files.flat();
+      return Array.prototype.concat(...files); // Flatten the array
     };
 
+    console.log("Reading folder:", folderPath);
     const files = await getFiles(folderPath);
+    console.log("Found files:", files);
+
     return { success: true, files };
   } catch (error) {
+    console.error("Error reading folder:", error);
     return { success: false, error: (error as Error).message };
   }
 });
@@ -230,9 +249,12 @@ ipcMain.handle("upload-folder", async (_event, folderPath: string) => {
 // Also add a helper to read file content
 ipcMain.handle("read-file-content", async (_event, filePath: string) => {
   try {
+    console.log("Reading file:", filePath);
     const content = await fs.readFile(filePath);
+    console.log("File read successfully, size:", content.length);
     return { success: true, content };
   } catch (error) {
+    console.error("Error reading file:", error);
     return { success: false, error: (error as Error).message };
   }
 });

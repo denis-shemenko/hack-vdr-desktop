@@ -13,11 +13,13 @@
         "electron": "^28.3.3",
         "electron-builder": "^25.1.8",
         "lucide-react": "^0.464.0",
+        "path-browserify": "^1.0.1",
         "react": "^18.3.1",
         "react-dom": "^18.3.1"
     },
     "devDependencies": {
         "@types/node": "^20.17.9",
+        "@types/path-browserify": "^1.0.3",
         "@types/react": "^18.3.12",
         "@types/react-dom": "^18.3.1",
         "@vitejs/plugin-react": "^4.3.4",
