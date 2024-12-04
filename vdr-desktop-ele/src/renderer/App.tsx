@@ -22,21 +22,16 @@ import { FolderUp } from 'lucide-react';
 // Utility functions for path operations in browser
 const path = {
   join: (...parts: string[]) => {
-    return parts.map(part => part.replace(/^\/+|\/+$/g, '')).filter(Boolean).join('/');
-  },
-  relative: (from: string, to: string) => {
-    const fromParts = from.replace(/^\/+|\/+$/g, '').split('/');
-    const toParts = to.replace(/^\/+|\/+$/g, '').split('/');
-    
-    while (fromParts.length && toParts.length && fromParts[0] === toParts[0]) {
-      fromParts.shift();
-      toParts.shift();
-    }
-    
-    return toParts.join('/');
+    return parts
+      .map(part => part.trim().replace(/^\/+|\/+$/g, ''))
+      .filter(Boolean)
+      .join('/');
   },
   dirname: (path: string) => {
-    return path.replace(/\\/g, '/').replace(/\/[^/]*$/, '') || '.';
+    const trimmedPath = path.trim().replace(/\\/g, '/');
+    const parts = trimmedPath.split('/').filter(Boolean);
+    parts.pop();
+    return parts.join('/');
   }
 };
 
@@ -51,11 +46,13 @@ export default function App() {
     try {
       setIsLoading(true);
       const encodedPath = encodeURIComponent(currentPath);
+      console.log('Fetching files for path:', currentPath);
       const response = await fetch(`${API_URL}/files?path=${encodedPath}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
+      console.log('Received files:', data);
       if (data.entries) {
         setFiles(data.entries);
       }
@@ -92,7 +89,7 @@ useEffect(() => {
       clearTimeout(timeoutId);
       removeListener();
   };
-}, []);
+}, [currentPath]);
 
   // Modify handleUpload to ensure refresh after successful upload
   const handleUpload = async () => {
@@ -268,29 +265,32 @@ useEffect(() => {
   };
 
   // Navigation functions
-const navigateToFolder = async (folderName: string) => {
-  const newPath = path.join(currentPath, folderName);
-  console.log('Navigating to:', newPath);
-  setCurrentPath(newPath);
-  await fetchFiles();
-};
+  const navigateToFolder = (folderName: string) => {
+    // Remove trailing slash if present
+    const cleanFolderName = folderName.replace(/\/$/, '');
+    const newPath = currentPath 
+      ? path.join(currentPath, cleanFolderName)
+      : cleanFolderName;
+    console.log('Navigating to:', newPath);
+    setCurrentPath(newPath);
+  };
 
-const navigateUp = async () => {
-  if (currentPath) {
-    const newPath = path.dirname(currentPath);
-    console.log('Navigating up to:', newPath === '.' ? '' : newPath);
-    setCurrentPath(newPath === '.' ? '' : newPath);
-    await fetchFiles();
-  }
-};
+  const navigateUp = () => {
+    const newPath = currentPath.includes('/') 
+      ? path.dirname(currentPath)
+      : '';
+    console.log('Navigating up to:', newPath);
+    setCurrentPath(newPath);
+  };
 
   return (
-    <div className="min-h-screen bg-[#022e34] text-white p-8">
+<div className="min-h-screen bg-[#022e34] text-white p-8">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold mb-8 text-center">VDR Desktop by YODY</h1>
         
+        {/* Upload buttons */}
         <div className="mb-4 flex gap-4">
-          <button 
+        <button 
             onClick={handleUpload}
             disabled={isLoading}
             className="w-full bg-white bg-opacity-10 hover:bg-opacity-20 
@@ -333,6 +333,7 @@ const navigateUp = async () => {
           <span>{currentPath || 'Root'}</span>
         </div>
 
+        {/* File list */}
         <div className="space-y-4">
           {files.length === 0 ? (
             <div className="text-center text-white text-opacity-60 p-8">
@@ -350,7 +351,7 @@ const navigateUp = async () => {
                     className="flex items-center space-x-3 cursor-pointer"
                     onClick={() => {
                       if (entry.endsWith('/')) {
-                        navigateToFolder(entry.slice(0, -1));
+                        navigateToFolder(entry);
                       }
                     }}
                   >
@@ -363,6 +364,7 @@ const navigateUp = async () => {
                   </div>
                   {!entry.endsWith('/') && (
                     <div className="flex space-x-2">
+                      {/* ... download and delete buttons ... */}
                       <button
                         onClick={() => handleDownload(entry)}
                         disabled={isLoading}
