@@ -151,21 +151,23 @@ async def delete_file(file_path: str):
 
 @app.get("/files")
 async def list_files(path: str = ""):
-    validate_upload_dir()
     try:
-        current_dir = UPLOAD_DIR / path
+        # Combine UPLOAD_DIR with the requested path
+        current_dir = UPLOAD_DIR / path if path else UPLOAD_DIR
         logger.info(f"Listing files in directory: {current_dir}")
         
         entries = []
         if current_dir.exists():
             for entry in current_dir.iterdir():
-                relative_entry = entry.relative_to(UPLOAD_DIR / path)
+                # Get path relative to the current directory
+                relative_entry = entry.relative_to(current_dir)
                 if entry.is_dir():
                     entries.append(f"{str(relative_entry)}/")
                 else:
                     entries.append(str(relative_entry))
                     
         logger.info(f"Found entries: {entries}")
+        # Sort folders first, then files, both alphabetically
         return {"entries": sorted(entries, key=lambda x: (not x.endswith('/'), x.lower()))}
     except Exception as e:
         logger.error(f"Error listing files: {str(e)}", exc_info=True)

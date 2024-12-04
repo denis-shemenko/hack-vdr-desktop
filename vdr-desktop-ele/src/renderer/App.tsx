@@ -50,7 +50,8 @@ export default function App() {
   const fetchFiles = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(`${API_URL}/files?path=${encodeURIComponent(currentPath)}`);
+      const encodedPath = encodeURIComponent(currentPath);
+      const response = await fetch(`${API_URL}/files?path=${encodedPath}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -160,25 +161,28 @@ useEffect(() => {
         console.log('Files found:', result);
         
         if (result.success && result.files.length > 0) {
+          // Normalize the base path to use forward slashes
           const basePath = selected.replace(/\\/g, '/');
           console.log('Base path:', basePath);
           
           for (const filePath of result.files) {
-            console.log('Processing file:', filePath);
+            // Normalize the file path to use forward slashes
+            const normalizedFilePath = filePath.replace(/\\/g, '/');
+            console.log('Processing file:', normalizedFilePath);
             
             const fileContent = await window.electronAPI.readFileContent(filePath);
-            console.log('File content read success:', fileContent.success);
-            
             if (!fileContent.success || !fileContent.content) {
-              console.log('Failed to read file:', filePath);
+              console.log('Failed to read file:', normalizedFilePath);
               continue;
             }
   
             // Calculate relative path from base folder
-            const relativePath = filePath.replace(basePath, '').replace(/^[/\\]/, '');
+            const relativePath = normalizedFilePath
+              .replace(basePath, '')
+              .replace(/^\/+/, ''); // Remove leading slashes
             console.log('Relative path:', relativePath);
             
-            // Construct path starting with the selected folder name
+            // Construct upload path
             const uploadPath = `${folderName}/${relativePath}`;
             console.log('Upload path:', uploadPath);
             
@@ -263,13 +267,22 @@ useEffect(() => {
     }
   };
 
-  const navigateToFolder = (folderName: string) => {
-    setCurrentPath(path.join(currentPath, folderName));
-  };
+  // Navigation functions
+const navigateToFolder = async (folderName: string) => {
+  const newPath = path.join(currentPath, folderName);
+  console.log('Navigating to:', newPath);
+  setCurrentPath(newPath);
+  await fetchFiles();
+};
 
-  const navigateUp = () => {
-    setCurrentPath(path.dirname(currentPath));
-  };
+const navigateUp = async () => {
+  if (currentPath) {
+    const newPath = path.dirname(currentPath);
+    console.log('Navigating up to:', newPath === '.' ? '' : newPath);
+    setCurrentPath(newPath === '.' ? '' : newPath);
+    await fetchFiles();
+  }
+};
 
   return (
     <div className="min-h-screen bg-[#022e34] text-white p-8">
