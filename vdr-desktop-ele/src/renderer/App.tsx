@@ -18,6 +18,7 @@ import { useState, useEffect } from 'react';
 import { Upload, Download, Trash2, File, Folder, ChevronLeft } from 'lucide-react';
 import { Buffer } from 'buffer';
 import { FolderUp } from 'lucide-react';
+import AISidePanel from '../components/AISidePanel';
 
 // Utility functions for path operations in browser
 const path = {
@@ -391,6 +392,18 @@ useEffect(() => {
           )}
         </div>
       </div>
+      <AISidePanel 
+    files={files}
+    currentPath={currentPath}
+    onFileSelect={(filename) => {
+      // Handle file selection - could navigate to it or download it
+      if (!filename.endsWith('/')) {
+        handleDownload(filename);
+      } else {
+        navigateToFolder(filename);
+      }
+    }}
+  />
     </div>
   );
 }

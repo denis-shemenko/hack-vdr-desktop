@@ -3,6 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from typing import Optional, List
 from pathlib import Path
+from openai import OpenAI
+from dotenv import load_dotenv
+from docx import Document
 import shutil
 import os
 import json
@@ -23,6 +26,83 @@ app.add_middleware(
 )
 
 UPLOAD_DIR: Optional[Path] = "default"
+
+# Initialize OpenAI client
+load_dotenv()
+client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+
+def readDocx(file_path):
+    doc = Document(file_path)
+    res  = ""
+    for paragraph in doc.paragraphs:
+        res += paragraph.text
+    return res
+
+@app.post("/api/search")
+async def search_files(request: dict):
+    query = request.get("query")
+    files = request.get("files", [])
+    
+    logger.info(f"Starting search with query: {query}")
+    logger.info(f"Using API key: {client.api_key[:13]}...")
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a file search assistant. Given a list of files and a search query, return the most relevant files."},
+                {"role": "user", "content": f"Query: {query}\nFiles: {files}\nReturn only the most relevant files based on the query."}
+            ]
+        )
+        
+        # Process the response to extract relevant files
+        relevant_files = [f for f in files if f["name"] in response.choices[0].message.content]
+        return {"results": relevant_files}
+    except Exception as e:
+        print(f"Search error details: {type(e).__name__}: {str(e)}")  # Detailed error logging
+        import traceback
+        print(traceback.format_exc())  # Print full stack trace
+        return {"error": f"OpenAI API error: {str(e)}"}
+
+@app.post("/api/summarize")
+async def summarize_file(request: dict):
+    filename = request.get("filename")
+    current_file_path = request.get("currentPath")
+
+    if not filename:
+        return {"error": "No filename provided"}
+        
+    try:
+        #logger.info(f"Filename to Read content: {filename}")
+
+        if(os.path.splitext(filename)[1] != ".docx"):
+            logger.warning("Only DOCX files supported for summarization now")
+            return
+
+        # Read file content
+        file_path = UPLOAD_DIR / current_file_path / filename
+
+        logger.info(f"Filepath to Read: {file_path}")
+        
+        content = readDocx(file_path)
+
+        # with open(file_path, 'r') as f:
+        #     content = f.readlines()
+            
+        logger.info(f"content read: {content[:100]}")
+
+        # Get summary from GPT
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a file summarization assistant. Provide a concise summary of the file content."},
+                {"role": "user", "content": f"Please summarize this file:\n{content[:5000]}"}
+            ]
+        )
+        
+        return {"summary": response.choices[0].message.content}
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.post("/set-config")
 async def set_config(config: dict):

@@ -2,3 +2,4 @@ backend/venv
 backend/uploads
 backend/__pycache__
 vdr-desktop-ele/node_modules
+backend/.env
