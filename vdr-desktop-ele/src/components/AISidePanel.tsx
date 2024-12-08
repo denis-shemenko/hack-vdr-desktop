@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, X, FileSearch, FileText, Loader2 } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
@@ -15,11 +15,11 @@ interface SearchResult {
   name: string;
 }
 
-const AISidePanel: React.FC<AISidePanelProps> = ({ 
-  files, 
+const AISidePanel: React.FC<AISidePanelProps> = ({
+  files,
   currentPath,
-  onFileSelect, 
-  className = "" 
+  onFileSelect,
+  className = ""
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -28,7 +28,19 @@ const AISidePanel: React.FC<AISidePanelProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
 
+  useEffect(() => {
+    if (!query.trim()) {
+      setSelectedFile(null);
+      setSearchResults([]);
+    }
+  }, [query]);
+
   const handleSearch = async () => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      setSelectedFile(null);
+      return;
+    }
     setIsLoading(true);
     try {
       const response = await fetch('http://127.0.0.1:8000/api/search', {
@@ -41,13 +53,13 @@ const AISidePanel: React.FC<AISidePanelProps> = ({
           files: files.map(f => ({ name: f.endsWith('/') ? f.slice(0, -1) : f }))
         }),
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         console.error('Server error:', errorData);
         throw new Error(errorData.error || 'Server error');
       }
-  
+
       const data = await response.json();
       if (data.error) {
         throw new Error(data.error);
@@ -69,12 +81,12 @@ const AISidePanel: React.FC<AISidePanelProps> = ({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          filename, 
+        body: JSON.stringify({
+          filename,
           currentPath: currentPath
          }),
       });
-      
+
       const data = await response.json();
       setSummary(data.summary || '');
       setSelectedFile(filename);
@@ -103,7 +115,7 @@ const AISidePanel: React.FC<AISidePanelProps> = ({
                       ${isOpen ? 'w-96' : 'w-0'}`}>
         <div className="p-6 h-full flex flex-col gap-6">
           <h2 className="text-xl font-semibold">AI Assistant</h2>
-          
+
           {/* Search Section */}
           <div className="space-y-4">
             <div className="flex gap-2">
@@ -112,11 +124,16 @@ const AISidePanel: React.FC<AISidePanelProps> = ({
                 placeholder="Search files..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && query.trim()) {
+                    handleSearch(); // Trigger search on Enter key
+                  }
+                }}
                 className="flex-1 bg-white bg-opacity-5"
               />
               <Button
                 onClick={handleSearch}
-                disabled={isLoading || !query}
+                disabled={isLoading || !query.trim()}
                 className="bg-white bg-opacity-10 hover:bg-opacity-20"
               >
                 {isLoading ? <Loader2 className="animate-spin" size={18} /> : <Search size={18} />}
