@@ -13,7 +13,7 @@ import shutil
 import stat
 from uuid import uuid4
 from langchain_chroma import Chroma
-from langchain_core.documents import Document
+from langchain_core.documents import Document as Document2
 from langchain_openai import OpenAIEmbeddings
 from langchain_core.prompts import PromptTemplate
 from utils import *
@@ -33,7 +33,7 @@ app.add_middleware(
 )
 
 UPLOAD_DIR: Optional[Path] = "default"
-DB_DIRECTORY:Optional[Path] = os.path.dirname(UPLOAD_DIR)
+DB_DIRECTORY:Optional[Path] = "/Users/dfm4ik/Documents/db_folder"
 
 load_dotenv()
 API_KEY = os.getenv('OPENAI_API_KEY')
@@ -45,12 +45,13 @@ embedings = OpenAIEmbeddings(api_key = API_KEY
                              ,model="text-embedding-3-small")
 vectore_store = Chroma(embedding_function=embedings
                        ,persist_directory=DB_DIRECTORY)
-
 retriever = vectore_store.as_retriever(search_kwargs = {"k":5})
+
 
 def add_document_to_vector_db(document_name):
     content = extract_text(document_name)
-    new_document = Document(
+    logger.info(f"addedd content {content}")
+    new_document = Document2(
         page_content= content 
         ,metadata={"name":document_name}
     )
@@ -74,9 +75,8 @@ async def search_files(request: dict):
 
     try:
         retrieve_answer = retriever.invoke(query)
-        
         # Process the response to extract relevant files
-        relevant_files = [f.metadata['name']for f in retrieve_answer]
+        relevant_files = [f.metadata['name'] for f in retrieve_answer]
         return {"results": relevant_files}
     except Exception as e:
         print(f"Search error details: {type(e).__name__}: {str(e)}")  # Detailed error logging
@@ -90,16 +90,14 @@ async def get_assistant_responce(request):
     user_query = request.get("query")
     logger.info(f"Starting search with query: {user_query}")
     logger.info(f"Using API key: {client.api_key[:13]}...")
-
     try:
         retrieve_data = retriever.invoke(user_query)
-        context = retrieve_data[0].page_content +'\n'+retrieve_data[1].page_content
-    
+        context = retrieve_data[0].page_content
         PROMPT_TEMPLATE = PromptTemplate.from_template('''You are a highly skilled Due Diligence Assistant designed to support users in conducting and precise research.
         Use this context {context} to answer {query}.
         Make your answers short.''')
     
-        answer = client.chat.completions.create(
+        responce = client.chat.completions.create(
         model="gpt-4o"
         ,messages=[
             {
@@ -108,7 +106,9 @@ async def get_assistant_responce(request):
             }
         ]   
         )
-        return {"results":answer}
+        answer = responce.choices[0].message.content
+        logger.info(f"{answer}")
+        return {"results":[answer]}
     except Exception as e:
         print(f"Search error details: {type(e).__name__}: {str(e)}")  # Detailed error logging
         import traceback
@@ -221,11 +221,12 @@ async def upload_file(file: UploadFile = File(...)):
         # Save the file
         with open(full_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
+        logger.info(f"add new file to {full_path}")
         try:
-            add_document_to_vector_db(file)
+            add_document_to_vector_db(full_path)
         except Exception as e:
-            print("{e}")
-            
+            logger.info("{e}")
+
         return {
             "filename": filename,
             "status": "success"
