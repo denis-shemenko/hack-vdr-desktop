@@ -341,54 +341,61 @@ useEffect(() => {
               No files uploaded yet
             </div>
           ) : (
-            files.map((entry) => (
-              <div 
-                key={entry}
-                className="bg-white bg-opacity-5 rounded-lg p-4
-                         hover:bg-opacity-10 transition-all duration-300"
-              >
-                <div className="flex items-center justify-between">
-                  <div 
-                    className="flex items-center space-x-3 cursor-pointer"
-                    onClick={() => {
-                      if (entry.endsWith('/')) {
-                        navigateToFolder(entry);
-                      }
-                    }}
-                  >
-                    {entry.endsWith('/') ? (
-                      <Folder size={20} className="text-white text-opacity-60" />
-                    ) : (
-                      <File size={20} className="text-white text-opacity-60" />
-                    )}
-                    <span className="truncate">{entry.endsWith('/') ? entry.slice(0, -1) : entry}</span>
-                  </div>
-                  {!entry.endsWith('/') && (
-                    <div className="flex space-x-2">
-                      {/* ... download and delete buttons ... */}
-                      <button
-                        onClick={() => handleDownload(entry)}
-                        disabled={isLoading}
-                        className="p-2 hover:bg-white hover:bg-opacity-10 rounded-lg
-                                 transition-all duration-300
-                                 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <Download size={20} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(entry)}
-                        disabled={isLoading}
-                        className="p-2 hover:bg-white hover:bg-opacity-10 rounded-lg
-                                 transition-all duration-300 text-red-400
-                                 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <Trash2 size={20} />
-                      </button>
+            files.map((entry) => {
+              const isFolder = entry.endsWith('/');
+              const trimmedEntry = isFolder ? entry.slice(0, -1) : entry; // Remove trailing slash for folders
+              const displayEntry =
+                trimmedEntry.length > 60 ? `${trimmedEntry.slice(0, 60)}...` : trimmedEntry;
+
+              return (
+                <div
+                  key={entry}
+                  className="bg-white bg-opacity-5 rounded-lg p-4
+                       hover:bg-opacity-10 transition-all duration-300"
+                >
+                  <div className="flex items-center justify-between">
+                    <div
+                      className="flex items-center space-x-3 cursor-pointer"
+                      onClick={() => {
+                        if (isFolder) {
+                          navigateToFolder(entry.slice(0, -1)); // Remove the trailing slash when navigating
+                        }
+                      }}
+                      title={trimmedEntry} // Tooltip displaying full name
+                    >
+                      {isFolder ? (
+                        <Folder size={20} className="text-white text-opacity-60" />
+                      ) : (
+                        <File size={20} className="text-white text-opacity-60" />
+                      )}
+                      <span className="truncate">{displayEntry}</span>
                     </div>
-                  )}
+                    {!isFolder && (
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleDownload(entry)}
+                          disabled={isLoading}
+                          className="p-2 hover:bg-white hover:bg-opacity-10 rounded-lg
+                               transition-all duration-300
+                               disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Download size={20} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(entry)}
+                          disabled={isLoading}
+                          className="p-2 hover:bg-white hover:bg-opacity-10 rounded-lg
+                               transition-all duration-300 text-red-400
+                               disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Trash2 size={20} />
+                        </button>
+                      </div>
+                    )}
+                    </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
