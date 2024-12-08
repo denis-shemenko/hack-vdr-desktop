@@ -1,16 +1,23 @@
-from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from typing import Optional, List
 from pathlib import Path
 from openai import OpenAI
 from dotenv import load_dotenv
 from docx import Document
-import shutil
 import os
 import json
 import logging
+import shutil
 import stat
+from uuid import uuid4
+from langchain_chroma import Chroma
+from langchain_core.documents import Document
+from langchain_openai import OpenAIEmbeddings
+from langchain_core.prompts import PromptTemplate
+from utils import *
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -26,10 +33,30 @@ app.add_middleware(
 )
 
 UPLOAD_DIR: Optional[Path] = "default"
+DB_DIRECTORY:Optional[Path] = os.path.dirname(UPLOAD_DIR)
 
-# Initialize OpenAI client
 load_dotenv()
-client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+API_KEY = os.getenv('OPENAI_API_KEY')
+
+client = OpenAI(api_key=API_KEY)
+
+#initialize vector database 
+embedings = OpenAIEmbeddings(api_key = API_KEY
+                             ,model="text-embedding-3-small")
+vectore_store = Chroma(embedding_function=embedings
+                       ,persist_directory=DB_DIRECTORY)
+
+retriever = vectore_store.as_retriever(search_kwargs = {"k":5})
+
+def add_document_to_vector_db(document_name):
+    content = extract_text(document_name)
+    new_document = Document(
+        page_content= content 
+        ,metadata={"name":document_name}
+    )
+
+    vectore_store.add_documents([new_document],ids = [str(uuid4())])
+
 
 def readDocx(file_path):
     doc = Document(file_path)
@@ -41,28 +68,53 @@ def readDocx(file_path):
 @app.post("/api/search")
 async def search_files(request: dict):
     query = request.get("query")
-    files = request.get("files", [])
     
     logger.info(f"Starting search with query: {query}")
     logger.info(f"Using API key: {client.api_key[:13]}...")
 
     try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a file search assistant. Given a list of files and a search query, return the most relevant files."},
-                {"role": "user", "content": f"Query: {query}\nFiles: {files}\nReturn only the most relevant files based on the query."}
-            ]
-        )
+        retrieve_answer = retriever.invoke(query)
         
         # Process the response to extract relevant files
-        relevant_files = [f for f in files if f["name"] in response.choices[0].message.content]
+        relevant_files = [f.metadata['name']for f in retrieve_answer]
         return {"results": relevant_files}
     except Exception as e:
         print(f"Search error details: {type(e).__name__}: {str(e)}")  # Detailed error logging
         import traceback
         print(traceback.format_exc())  # Print full stack trace
         return {"error": f"OpenAI API error: {str(e)}"}
+
+
+@app.post("/api/search_assistant")
+async def get_assistant_responce(request):
+    user_query = request.get("query")
+    logger.info(f"Starting search with query: {user_query}")
+    logger.info(f"Using API key: {client.api_key[:13]}...")
+
+    try:
+        retrieve_data = retriever.invoke(user_query)
+        context = retrieve_data[0].page_content +'\n'+retrieve_data[1].page_content
+    
+        PROMPT_TEMPLATE = PromptTemplate.from_template('''You are a highly skilled Due Diligence Assistant designed to support users in conducting and precise research.
+        Use this context {context} to answer {query}.
+        Make your answers short.''')
+    
+        answer = client.chat.completions.create(
+        model="gpt-4o"
+        ,messages=[
+            {
+                "role":"user"
+                ,"content":PROMPT_TEMPLATE.format(context = context,query = user_query)
+            }
+        ]   
+        )
+        return {"results":answer}
+    except Exception as e:
+        print(f"Search error details: {type(e).__name__}: {str(e)}")  # Detailed error logging
+        import traceback
+        print(traceback.format_exc())  # Print full stack trace
+        return {"error": f"OpenAI API error: {str(e)}"}
+
 
 @app.post("/api/summarize")
 async def summarize_file(request: dict):
@@ -169,6 +221,10 @@ async def upload_file(file: UploadFile = File(...)):
         # Save the file
         with open(full_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
+        try:
+            add_document_to_vector_db(file)
+        except Exception as e:
+            print("{e}")
             
         return {
             "filename": filename,
@@ -192,7 +248,10 @@ async def upload_folder(files: List[UploadFile] = File(...), path: str = Form(""
             # Save the file
             with open(full_path, "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
-            
+            try:
+                add_document_to_vector_db(file)
+            except Exception as e:
+                print("{e}")
             results.append({
                 "filename": file.filename,
                 "path": str(full_path.relative_to(UPLOAD_DIR)),
