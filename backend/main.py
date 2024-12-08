@@ -46,7 +46,6 @@ def add_document_to_vector_db(document_name):
         page_content= content 
         ,metadata={"name":str(document_name)}
     )
-    logger.info(f"new_document created:")
     try:
         VECTORE_STORE.add_documents([new_document],ids = [str(uuid4())])
     except Exception as e:
@@ -64,9 +63,9 @@ async def search_files(request: dict):
 
     try:
         retrieve_answer = RETRIEVER.invoke(query)
-        logger.info(f"Answer[0]: {retrieve_answer[0]}")
+        logger.info(f"Answer[0]: {retrieve_answer[0].metadata['name']}")
         # Process the response to extract relevant files
-        relevant_files = [f.metadata['name'] for f in retrieve_answer]
+        relevant_files = [str(f.metadata['name']) for f in retrieve_answer]
         return {"results": relevant_files}
     except Exception as e:
         print(f"Search error details: {type(e).__name__}: {str(e)}")  # Detailed error logging
