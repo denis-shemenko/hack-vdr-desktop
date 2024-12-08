@@ -25,3 +25,4 @@ dist-ssr
 
 backend/env/
 .DS_Store
+backend/vector_db/
