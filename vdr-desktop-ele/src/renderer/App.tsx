@@ -6,6 +6,7 @@ declare global {
           deleteFile: (filename: string) => Promise<{ success: boolean; error?: string }>;
           uploadFolder: (folderPath: string) => Promise<{ success: boolean; files: string[]; error?: string }>;
           readFileContent: (filePath: string) => Promise<{ success: boolean; content?: Buffer; error?: string }>;
+          searchDocuments: (query: string) => Promise<{ success: boolean; results?: string; error?: string }>;
           openFolderDialog: () => Promise<string | undefined>;
           onFilesChanged: (callback: () => void) => () => void;
           watchFiles: () => Promise<{ success: boolean }>;
@@ -15,7 +16,7 @@ declare global {
 
 // src/App.tsx
 import { useState, useEffect } from 'react';
-import { Upload, Download, Trash2, File, Folder, ChevronLeft } from 'lucide-react';
+import { Upload, Download, Trash2, File, Folder, ChevronLeft, Search } from 'lucide-react';
 import { Buffer } from 'buffer';
 import { FolderUp } from 'lucide-react';
 import AISidePanel from '../components/AISidePanel';
@@ -41,6 +42,9 @@ export default function App() {
   const [files, setFiles] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [currentPath, setCurrentPath] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<string>('');
+  const [isSearching, setIsSearching] = useState(false);
   const API_URL = 'http://127.0.0.1:8000';
 
   const fetchFiles = async () => {
@@ -91,6 +95,25 @@ useEffect(() => {
       removeListener();
   };
 }, [currentPath]);
+
+const handleSearch = async () => {
+  if (!searchQuery.trim()) return;
+  
+  setIsSearching(true);
+  try {
+    const result = await window.electronAPI.searchDocuments(searchQuery);
+    
+    if (result.success && result.results) {
+      setSearchResults(result.results);
+    } else if (result.error) {
+      setStatus(`Search error: ${result.error}`);
+    }
+  } catch (error) {
+    setStatus(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  } finally {
+    setIsSearching(false);
+  }
+};
 
   // Modify handleUpload to ensure refresh after successful upload
   const handleUpload = async () => {
@@ -289,6 +312,45 @@ useEffect(() => {
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold mb-8 text-center">VDR Desktop by YODY</h1>
         
+        {/* Search Section */}
+        <div className="mb-6">
+          <div className="flex gap-4">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                placeholder="Ask anything about your documents..."
+                className="w-full bg-white bg-opacity-10 rounded-lg px-4 py-3 pr-12
+                          placeholder-white placeholder-opacity-50 focus:outline-none
+                          focus:ring-2 focus:ring-white focus:ring-opacity-20"
+              />
+              <Search 
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white text-opacity-60"
+                size={20}
+              />
+            </div>
+            <button
+              onClick={handleSearch}
+              disabled={isSearching || !searchQuery.trim()}
+              className="bg-white bg-opacity-10 hover:bg-opacity-20 px-6 rounded-lg
+                       transition-all duration-300 flex items-center justify-center
+                       disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSearching ? 'Searching...' : 'Search'}
+            </button>
+          </div>
+
+          {/* Search Results */}
+          {searchResults.length > 0 && (
+            <div className="mt-4 p-4 bg-white bg-opacity-5 rounded-lg">
+              <h3 className="text-lg font-semibold mb-2">AI Assistant Response:</h3>
+                <p className="text-white text-opacity-90">{searchResults}</p>
+            </div>
+          )}
+        </div>
+
         {/* Upload buttons */}
         <div className="mb-4 flex gap-4">
         <button 

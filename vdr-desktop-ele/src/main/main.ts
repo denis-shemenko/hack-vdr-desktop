@@ -3,6 +3,7 @@ import { app, BrowserWindow, ipcMain, Tray, Menu, dialog } from "electron";
 import * as path from "path";
 import * as fs from "fs/promises";
 import chokidar, { FSWatcher } from "chokidar";
+//import fetch from "node-fetch";
 
 const UPLOAD_DIR = path.join(app.getPath("userData"), "uploads");
 
@@ -184,6 +185,44 @@ const createTray = () => {
     }
   });
 };
+
+ipcMain.handle("search-documents", async (_event, query: string) => {
+  try {
+    const response = await fetch("http://127.0.0.1:8000/api/search_assistant", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      // Send the query in the request body format FastAPI expects
+      body: JSON.stringify({
+        query: query,
+        // Add any other required fields here if needed
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error("Search API error:", errorData);
+      throw new Error(
+        `HTTP error! status: ${response.status}, details: ${JSON.stringify(
+          errorData
+        )}`
+      );
+    }
+
+    const data = await response.json();
+    if (data.error) {
+      throw new Error(data.error);
+    }
+    return { success: true, results: data.results };
+  } catch (error) {
+    console.error("Search error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+});
 
 // Add a handler to get upload directory
 ipcMain.handle("get-upload-dir", () => UPLOAD_DIR);

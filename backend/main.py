@@ -14,6 +14,10 @@ from uuid import uuid4
 from langchain_core.documents import Document as Document2
 from langchain_core.prompts import PromptTemplate
 from utils import *
+from pydantic import BaseModel
+
+class SearchRequest(BaseModel):
+    query: str
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -75,8 +79,8 @@ async def search_files(request: dict):
 
 
 @app.post("/api/search_assistant")
-async def get_assistant_responce(request):
-    user_query = request.get("query")
+async def get_assistant_response(request: SearchRequest):
+    user_query = request.query
     logger.info(f"Starting search with query: {user_query}")
     logger.info(f"Using API key: {client.api_key[:13]}...")
     try:
@@ -86,22 +90,22 @@ async def get_assistant_responce(request):
         Use this context {context} to answer {query}.
         Make your answers short.''')
     
-        responce = client.chat.completions.create(
-        model="gpt-4o"
-        ,messages=[
-            {
-                "role":"user"
-                ,"content":PROMPT_TEMPLATE.format(context = context,query = user_query)
-            }
-        ]   
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": PROMPT_TEMPLATE.format(context=context, query=user_query)
+                }
+            ]   
         )
-        answer = responce.choices[0].message.content
+        answer = response.choices[0].message.content
         logger.info(f"{answer}")
-        return {"results":[answer]}
+        return {"results": [answer]}
     except Exception as e:
-        print(f"Search error details: {type(e).__name__}: {str(e)}")  # Detailed error logging
+        print(f"Search error details: {type(e).__name__}: {str(e)}")
         import traceback
-        print(traceback.format_exc())  # Print full stack trace
+        print(traceback.format_exc())
         return {"error": f"OpenAI API error: {str(e)}"}
 
 
