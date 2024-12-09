@@ -65,7 +65,7 @@ async def search_files(request: dict):
         retrieve_answer = RETRIEVER.invoke(query)
         logger.info(f"Answer[0]: {retrieve_answer[0].metadata['name']}")
         # Process the response to extract relevant files
-        relevant_files = [str(f.metadata['name']) for f in retrieve_answer]
+        relevant_files = [{"name": str(f.metadata['name'])} for f in retrieve_answer]
         return {"results": relevant_files}
     except Exception as e:
         print(f"Search error details: {type(e).__name__}: {str(e)}")  # Detailed error logging

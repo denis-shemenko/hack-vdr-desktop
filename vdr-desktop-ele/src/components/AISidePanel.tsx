@@ -133,7 +133,7 @@ const AISidePanel: React.FC<AISidePanelProps> = ({
                       className="flex items-center justify-between p-2 hover:bg-white 
                                hover:bg-opacity-5 rounded-lg cursor-pointer"
                       onClick={() => {
-                        onFileSelect?.(file.name);
+                        //onFileSelect?.(file.name);
                         handleGenerateSummary(file.name, currentPath);
                       }}
                     >
