@@ -5,3 +5,4 @@ vdr-desktop-ele/node_modules
 backend/.env
 backend/env
 .DS_Store
+backend/vector_db/

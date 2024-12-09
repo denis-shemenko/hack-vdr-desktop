@@ -29,7 +29,7 @@ app.add_middleware(
 )
 
 UPLOAD_DIR: Optional[Path] = "default"
-DB_DIRECTORY: Optional[Path] = "C:\\Users\\shemr\\AppData\\Roaming\\vdr-desktop\\vectordb"
+DB_DIRECTORY: Optional[Path] = "vector_db"
 
 load_dotenv()
 API_KEY = os.getenv('OPENAI_API_KEY')
@@ -41,13 +41,15 @@ client = OpenAI(api_key=API_KEY)
 def add_document_to_vector_db(document_name):
     logger.info(f"Reading content from: {document_name}")
     content = extract_text(document_name)
-    logger.info(f"addedd content {content}")
+    
     new_document = Document2(
         page_content= content 
-        ,metadata={"name":document_name}
+        ,metadata={"name":str(document_name)}
     )
-
-    VECTORE_STORE.add_documents([new_document],ids = [str(uuid4())])
+    try:
+        VECTORE_STORE.add_documents([new_document],ids = [str(uuid4())])
+    except Exception as e:
+        logger.info(f"added to vector strore error 1: {e}")
 
 @app.post("/api/search")
 async def search_files(request: dict):
@@ -61,9 +63,9 @@ async def search_files(request: dict):
 
     try:
         retrieve_answer = RETRIEVER.invoke(query)
-        logger.info(f"Answer[0]: {retrieve_answer[0]}")
+        logger.info(f"Answer[0]: {retrieve_answer[0].metadata['name']}")
         # Process the response to extract relevant files
-        relevant_files = [f.metadata['name'] for f in retrieve_answer]
+        relevant_files = [str(f.metadata['name']) for f in retrieve_answer]
         return {"results": relevant_files}
     except Exception as e:
         print(f"Search error details: {type(e).__name__}: {str(e)}")  # Detailed error logging
